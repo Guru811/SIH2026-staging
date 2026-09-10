@@ -1,0 +1,112 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ============================================================
+   Theme tokens — ported from the original Kosh frontend's
+   design language (warm parchment/gold/emerald/rust/violet
+   palette, serif headings, glass topbar, radial glows) onto
+   this rebuild. Risk-severity colors stay fixed hex values
+   (data semantics), everything else below is skinnable.
+   ============================================================ */
+:root {
+  --page-bg: #fbfaf7;
+  --surface: #ffffff;
+  --surface-2: #f6f4ee;
+  --line: #e7e2d6;
+  --text: #1b2036;
+  --text-dim: #6b6f85;
+
+  --gold: #b87d12;
+  --gold-dim: #ffb020;
+  --emerald: #16916f;
+  --rust: #d3355a;
+  --violet: #6c58e0;
+  --slate: #5b6478;
+
+  --accent: var(--violet);
+  --accent-dim: #8a7af0;
+  --accent-ring: color-mix(in srgb, var(--accent) 30%, transparent);
+
+  --card-shadow: 0 10px 25px -12px rgba(27, 32, 54, 0.18);
+  --topbar-bg: rgba(255, 255, 255, 0.72);
+
+  --density-y: 0.875rem; /* comfortable row/card padding, overridden by [data-density="compact"] */
+}
+
+[data-theme='dark'] {
+  --page-bg: #0a0e1b;
+  --surface: #12162a;
+  --surface-2: #171c33;
+  --line: #262c46;
+  --text: #eef1fb;
+  --text-dim: #9298b3;
+
+  --card-shadow: 0 12px 28px -14px rgba(0, 0, 0, 0.6);
+  --topbar-bg: rgba(10, 14, 27, 0.72);
+}
+
+[data-density='compact'] {
+  --density-y: 0.5rem;
+}
+
+/* Respect the in-app motion toggle in addition to OS-level preference */
+.motion-off * {
+  animation-duration: 0.001ms !important;
+  transition-duration: 0.001ms !important;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  @apply font-sans antialiased;
+  background: var(--page-bg);
+  color: var(--text);
+  background-image:
+    radial-gradient(600px circle at 8% -10%, color-mix(in srgb, var(--accent) 12%, transparent), transparent 60%),
+    radial-gradient(500px circle at 100% 0%, color-mix(in srgb, var(--emerald) 10%, transparent), transparent 55%);
+  background-attachment: fixed;
+  transition: background-color 0.25s ease, color 0.25s ease;
+}
+
+h1, h2, h3, .font-display {
+  font-family: ui-serif, Georgia, 'Times New Roman', serif;
+  letter-spacing: -0.01em;
+}
+
+/* Shimmering gradient brand wordmark, matching the old topbar treatment */
+.brand-gradient {
+  background: linear-gradient(90deg, var(--accent), var(--gold-dim), var(--emerald), var(--accent));
+  background-size: 200% auto;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: shimmerBg 6s ease-in-out infinite alternate;
+}
+
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
+}
+.scrollbar-none {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* Subtle hover lift for all cards, per Global UX Rule #6 — themed via variables */
+.card-hover {
+  transition: box-shadow 0.2s ease, transform 0.2s ease;
+}
+.card-hover:hover {
+  box-shadow: var(--card-shadow);
+  transform: translateY(-2px);
+}
+
+.glass {
+  background: var(--topbar-bg);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+}

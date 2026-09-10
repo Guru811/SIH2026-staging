@@ -44,13 +44,26 @@ def integrity_index():
 @app.get("/api/projects/{constituency}")
 def constituency_projects(constituency: str):
     df = query("""
-        SELECT state, constituency, work, work_category,
-               sanction_amount, work_status, financial_risk_score, anomaly_flag
-        FROM layer1_scores
-        WHERE constituency LIKE ?
-        ORDER BY financial_risk_score DESC
+        SELECT l1.constituency, l1.state, l1.work as work_description,
+               l1.work as work_id, l1.work_category as category,
+               l1.sanction_amount, l1.work_status,
+               l1.financial_risk_score,
+               COALESCE(lb.delay_risk_score, 0) as delay_risk_score,
+               COALESCE(lb.days_since_sanction, 0) as days_since_sanction,
+               0 as weather_alibi_applied,
+               COALESCE(dup.max_similarity, 0) * 100 as max_similarity,
+               COALESCE(dup.duplicate_flag, 0) as duplicate_flag,
+               (l1.financial_risk_score * 0.6 + COALESCE(lb.delay_risk_score, 0) * 0.4) as composite_risk_score,
+               l4.risk_band
+        FROM layer1_scores l1
+        LEFT JOIN layer1b_delay_scores lb ON l1.work = lb.work AND l1.constituency = lb.constituency
+        LEFT JOIN layer_duplicate_scores dup ON l1.work = dup.work AND l1.constituency = dup.constituency
+        LEFT JOIN layer4_integrity l4 ON l1.constituency = l4.constituency
+        WHERE l1.constituency LIKE ?
+        ORDER BY composite_risk_score DESC
         LIMIT 100
     """, (f"%{constituency}%",))
+    df = df.fillna("").replace([float("inf"), float("-inf")], "")
     return df.to_dict(orient="records")
 
 
@@ -82,7 +95,7 @@ def vendor_risks(limit: int = 200):
 @app.get("/api/vendor-graph")
 def vendor_graph():
     df = query("""
-        SELECT e.vendor_name, e.hon_ble_members_of_parliament as mp,
+        SELECT e.vendor_name as source, e.hon_ble_members_of_parliament as target,
                COUNT(*) as weight, SUM(e.fund_disbursed_amount) as amount
         FROM expenditure_on_completed_and_on_going_wo e
         JOIN layer3_vendor_scores v ON e.vendor_name = v.vendor_name
@@ -91,7 +104,8 @@ def vendor_graph():
         AND e.hon_ble_members_of_parliament IS NOT NULL
         GROUP BY e.vendor_name, e.hon_ble_members_of_parliament
     """)
-    nodes = list(set(df["vendor_name"].tolist() + df["mp"].tolist()))
+    df = df.fillna("").replace([float("inf"), float("-inf")], "")
+    nodes = list(set(df["source"].tolist() + df["target"].tolist()))
     links = df.to_dict(orient="records")
     return {"nodes": [{"id": n} for n in nodes], "links": links}
 
@@ -140,7 +154,7 @@ def constituency_weather(constituency: str):
 def duplicates(limit: int = 20):
     df = query("""
         SELECT constituency, state, work, work_category,
-               sanction_amount, max_similarity, most_similar_ida
+               sanction_amount, max_similarity * 100 as max_similarity, most_similar_ida
         FROM layer_duplicate_scores
         WHERE duplicate_flag = 1
         ORDER BY max_similarity DESC
@@ -173,11 +187,14 @@ def project_risks(limit: int = 20):
                l1.financial_risk_score,
                COALESCE(lb.delay_risk_score, 0) as delay_risk_score,
                COALESCE(lb.days_since_sanction, 0) as days_since_sanction,
-               COALESCE(lb.weather_alibi_discount, 0) as weather_alibi_applied,
+               0 as weather_alibi_applied,
+               COALESCE(dup.max_similarity, 0) * 100 as max_similarity,
+               COALESCE(dup.duplicate_flag, 0) as duplicate_flag,
                (l1.financial_risk_score * 0.6 + COALESCE(lb.delay_risk_score, 0) * 0.4) as composite_risk_score,
                l4.risk_band
         FROM layer1_scores l1
         LEFT JOIN layer1b_delay_scores lb ON l1.work = lb.work AND l1.constituency = lb.constituency
+        LEFT JOIN layer_duplicate_scores dup ON l1.work = dup.work AND l1.constituency = dup.constituency
         LEFT JOIN layer4_integrity l4 ON l1.constituency = l4.constituency
         WHERE l1.financial_risk_score IS NOT NULL
         ORDER BY composite_risk_score DESC
@@ -186,7 +203,6 @@ def project_risks(limit: int = 20):
     df = df.fillna("").replace([float("inf"), float("-inf")], "")
     return df.to_dict(orient="records")
 
-@app.get("/api/national-stats")
 @app.get("/api/national-stats")
 def national_stats():
     try:
@@ -235,3 +251,30 @@ def summary():
         "constituencies_weather_covered": int(query("SELECT COUNT(DISTINCT constituency) as n FROM weather_events").iloc[0,0]),
     }
     return stats
+
+
+@app.get("/api/constituencies")
+def constituencies_by_state(state: str):
+    df = query("""
+        SELECT constituency, COUNT(*) as n_projects
+        FROM works_sanctioned
+        WHERE state = ? AND constituency IS NOT NULL
+        GROUP BY constituency
+        ORDER BY constituency
+    """, (state,))
+    df = df.fillna("").replace([float("inf"), float("-inf")], "")
+    return df.to_dict(orient="records")
+
+
+@app.get("/api/mps")
+def mps_by_state(state: str):
+    df = query("""
+        SELECT DISTINCT hon_ble_members_of_parliament as mp,
+               constituency, house
+        FROM works_sanctioned
+        WHERE state = ?
+        AND hon_ble_members_of_parliament IS NOT NULL
+        ORDER BY mp
+    """, (state,))
+    df = df.fillna("").replace([float("inf"), float("-inf")], "")
+    return df.to_dict(orient="records")

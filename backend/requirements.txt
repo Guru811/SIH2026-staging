@@ -1,0 +1,13 @@
+fastapi
+uvicorn[standard]
+pandas
+numpy
+sqlalchemy
+pydantic-settings
+scikit-learn
+xgboost
+shap
+networkx
+python-louvain
+sentence-transformers
+requests

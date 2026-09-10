@@ -21,7 +21,7 @@ def explain_top_risks(model, X, features):
 def run_layer1b():
     con = sqlite3.connect("mplads.db")
     df = pd.read_sql("""
-        SELECT sanction_date, recommended_date, work_status,
+        SELECT sanction_date, recommended_date, work_status, work,
                sanction_amount, work_category, state, constituency, ida
         FROM works_sanctioned
         WHERE sanction_date IS NOT NULL
@@ -56,7 +56,7 @@ def run_layer1b():
     df["delay_risk_score"]  = (df["delay_probability"] * 100).round(2)
 
     con = sqlite3.connect("mplads.db")
-    df[["ida", "constituency", "state", "work_status",
+    df[["ida", "constituency", "state", "work_status", "work",
         "sanction_amount", "days_since_sanction",
         "rec_to_sanction_days", "delay_risk_score"]].to_sql(
         "layer1b_delay_scores", con, if_exists="replace", index=False)

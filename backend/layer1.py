@@ -48,14 +48,14 @@ def run_layer1():
 def compute_project_risk_score():
     con = sqlite3.connect("mplads.db")
 
-    l1 = pd.read_sql("SELECT rowid, ida, constituency, state, financial_risk_score, anomaly_flag FROM layer1_scores", con)
-    l1b = pd.read_sql("SELECT ida, constituency, delay_risk_score FROM layer1b_delay_scores", con)
-    dup = pd.read_sql("SELECT ida, constituency, max_similarity, duplicate_flag FROM layer_duplicate_scores", con)
+    l1 = pd.read_sql("SELECT rowid, work, constituency, state, financial_risk_score, anomaly_flag FROM layer1_scores", con)
+    l1b = pd.read_sql("SELECT work, constituency, delay_risk_score FROM layer1b_delay_scores", con)
+    dup = pd.read_sql("SELECT work, constituency, max_similarity, duplicate_flag FROM layer_duplicate_scores", con)
 
     con.close()
 
-    df = l1.merge(l1b[["ida","delay_risk_score"]], on="ida", how="left")
-    df = df.merge(dup[["ida","max_similarity","duplicate_flag"]], on="ida", how="left")
+    df = l1.merge(l1b[["work","constituency","delay_risk_score"]], on=["work","constituency"], how="left")
+    df = df.merge(dup[["work","constituency","max_similarity","duplicate_flag"]], on=["work","constituency"], how="left")
 
     df["delay_risk_score"]  = pd.to_numeric(df["delay_risk_score"],  errors="coerce").fillna(50)
     df["max_similarity"]    = pd.to_numeric(df["max_similarity"],    errors="coerce").fillna(0)
@@ -76,7 +76,7 @@ def compute_project_risk_score():
     )
 
     con = sqlite3.connect("mplads.db")
-    df[["ida","constituency","state","financial_risk_score","delay_risk_score",
+    df[["work","constituency","state","financial_risk_score","delay_risk_score",
         "max_similarity","duplicate_flag","composite_risk_score","risk_band"]].to_sql(
         "project_risk_scores", con, if_exists="replace", index=False
     )
@@ -85,7 +85,7 @@ def compute_project_risk_score():
     print(f"Projects scored: {len(df)}")
     print(f"\nRisk bands:\n{df['risk_band'].value_counts()}")
     print(f"\nTop 10 highest risk projects:")
-    print(df[["ida","constituency","state","composite_risk_score","risk_band"]]
+    print(df[["work","constituency","state","composite_risk_score","risk_band"]]
           .nlargest(10,"composite_risk_score").to_string())
 
 if __name__ == "__main__":

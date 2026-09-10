@@ -30,7 +30,7 @@ export default function Vendors() {
           </div>
           <p className="text-xs text-dim mb-10">Showing vendors with 2+ collusion flags only</p>
 
-          <VendorTable data={risks.data} loading={risks.loading} />
+          <VendorTable data={risks.data} graphData={graph.data} loading={risks.loading} />
         </>
       )}
     </PageTransition>
@@ -191,11 +191,12 @@ function CollusionGraph({ data }) {
   )
 }
 
-function VendorTable({ data, loading }) {
+function VendorTable({ data, graphData, loading }) {
   const rows = data?.vendors || data || []
   const [search, setSearch] = useState('')
   const [sortKey, setSortKey] = useState('total_disbursed')
   const [dir, setDir] = useState(-1)
+  const [expanded, setExpanded] = useState(null)
 
   const filtered = useMemo(() => {
     let list = rows
@@ -210,6 +211,8 @@ function VendorTable({ data, loading }) {
       setDir(-1)
     }
   }
+
+  const links = graphData?.links || []
 
   return (
     <div>
@@ -234,15 +237,44 @@ function VendorTable({ data, loading }) {
             <tbody className="divide-y divide-line bg-surface">
               {loading
                 ? Array.from({ length: 6 }).map((_, i) => <SkeletonRow key={i} cols={5} />)
-                : filtered.map((v, i) => (
-                    <tr key={v.vendor_name + i} className="hover:bg-surface2 transition-colors">
-                      <td className="px-4 py-3 text-sm font-medium text-ink">{v.vendor_name}</td>
-                      <td className="px-4 py-3 text-sm text-dim">{formatNumber(v.constituencies_served)}</td>
-                      <td className="px-4 py-3 text-sm tabular-nums">{formatCr(v.total_disbursed)}</td>
-                      <td className="px-4 py-3 text-sm"><CollusionDot count={v.collusion_flags || 0} /></td>
-                      <td className="px-4 py-3 text-sm font-medium">{v.risk_level}</td>
-                    </tr>
-                  ))}
+                : filtered.map((v, i) => {
+                    const isOpen = expanded === v.vendor_name
+                    const vendorLinks = links.filter((l) => l.source === v.vendor_name)
+                    return (
+                      <>
+                        <tr
+                          key={v.vendor_name + i}
+                          onClick={() => setExpanded(isOpen ? null : v.vendor_name)}
+                          className="hover:bg-surface2 transition-colors cursor-pointer"
+                        >
+                          <td className="px-4 py-3 text-sm font-medium text-ink">{v.vendor_name}</td>
+                          <td className="px-4 py-3 text-sm text-dim">{formatNumber(v.constituencies_served)}</td>
+                          <td className="px-4 py-3 text-sm tabular-nums">{formatCr(v.total_disbursed)}</td>
+                          <td className="px-4 py-3 text-sm"><CollusionDot count={v.collusion_flags || 0} /></td>
+                          <td className="px-4 py-3 text-sm font-medium">{v.risk_level}</td>
+                        </tr>
+                        {isOpen && (
+                          <tr key={v.vendor_name + i + '-detail'}>
+                            <td colSpan={5} className="px-4 py-3 bg-surface2">
+                              {vendorLinks.length === 0 ? (
+                                <p className="text-xs text-dim">No MP-level connection data available for this vendor.</p>
+                              ) : (
+                                <div className="space-y-1">
+                                  <p className="text-xs font-semibold text-dim uppercase mb-2">MPs this vendor worked with</p>
+                                  {vendorLinks.map((l, j) => (
+                                    <div key={j} className="flex justify-between text-sm">
+                                      <span className="text-ink">{l.target}</span>
+                                      <span className="text-dim tabular-nums">{formatCr(l.amount)} · {l.weight} payment{l.weight === 1 ? '' : 's'}</span>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                            </td>
+                          </tr>
+                        )}
+                      </>
+                    )
+                  })}
             </tbody>
           </table>
         </div>

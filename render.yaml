@@ -1,0 +1,10 @@
+services:
+  - type: web
+    name: zero-artifacts-mplads-backend
+    runtime: docker
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: ./backend
+    plan: free
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.0

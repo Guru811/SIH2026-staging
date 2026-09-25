@@ -15,6 +15,7 @@ export default function MPs() {
 
   const [search, setSearch] = useState('')
   const [stateFilter, setStateFilter] = useState('')
+  const [expandedMp, setExpandedMp] = useState(null)
 
   const filtered = useMemo(() => {
     let list = rows
@@ -29,10 +30,11 @@ export default function MPs() {
   const chartData = useMemo(
     () =>
       [...rows]
-        .sort((a, b) => (b.march_spending_ratio || 0) - (a.march_spending_ratio || 0))
-        .slice(0, 20)
+        .filter((r) => r.march_rush_flag || r.bulk_spending_flag || (r.spending_risk_score || 0) >= 20)
+        .sort((a, b) => (b.spending_risk_score || 0) - (a.spending_risk_score || 0))
+        .slice(0, 15)
         .map((r) => ({
-          mp: r.mp,
+          mp: r.mp?.length > 22 ? r.mp.slice(0, 20) + '…' : r.mp,
           march: Math.round((r.march_spending_ratio || 0) * 100),
           rest: 100 - Math.round((r.march_spending_ratio || 0) * 100)
         })),
@@ -63,11 +65,11 @@ export default function MPs() {
           )}
 
           <div className="rounded-xl border border-line bg-surface p-4 card-hover mb-8">
-            <h3 className="text-sm font-semibold text-ink mb-3">March spending ratio (top 20)</h3>
+            <h3 className="text-sm font-semibold text-ink mb-3">March spending ratio — flagged MPs only</h3>
             {loading ? (
               <SkeletonCard className="h-80" />
             ) : (
-              <ResponsiveContainer width="100%" height={Math.max(320, chartData.length * 26)}>
+              <ResponsiveContainer width="100%" height={Math.max(320, chartData.length * 35)}>
                 <BarChart data={chartData} layout="vertical" margin={{ left: 8 }}>
                   <CartesianGrid strokeDasharray="3 3" horizontal={false} />
                   <XAxis type="number" domain={[0, 100]} unit="%" tick={{ fontSize: 11 }} />
@@ -106,29 +108,45 @@ export default function MPs() {
                 <tbody className="divide-y divide-line bg-surface">
                   {loading
                     ? Array.from({ length: 8 }).map((_, i) => <SkeletonRow key={i} cols={6} />)
-                    : filtered.map((r, i) => (
-                        <tr key={r.mp + i} className="hover:bg-surface2 transition-colors">
-                          <td className="px-4 py-3 text-sm font-medium text-ink">{r.mp}</td>
-                          <td className="px-4 py-3 text-sm text-dim">{r.constituency}</td>
-                          <td className="px-4 py-3 text-sm text-dim">{r.state}</td>
-                          <td className="px-4 py-3 text-sm tabular-nums">
-                            {formatPercent((r.march_spending_ratio || 0) * 100)}
-                          </td>
-                          <td className="px-4 py-3 text-sm">
-                            {r.bulk_spending_flag ? (
-                              <span className="text-risk-critical font-semibold">YES</span>
-                            ) : (
-                              <span className="text-dim">—</span>
+                    : filtered.map((r, i) => {
+                        const isOpen = expandedMp === r.mp + i
+                        const pct = Math.round((r.march_spending_ratio || 0) * 100)
+                        return (
+                          <>
+                            <tr
+                              key={r.mp + i}
+                              onClick={() => setExpandedMp(isOpen ? null : r.mp + i)}
+                              className="hover:bg-surface2 transition-colors cursor-pointer"
+                            >
+                              <td className="px-4 py-3 text-sm font-medium text-ink">{r.mp}</td>
+                              <td className="px-4 py-3 text-sm text-dim">{r.constituency}</td>
+                              <td className="px-4 py-3 text-sm text-dim">{r.state}</td>
+                              <td className="px-4 py-3 text-sm tabular-nums">{formatPercent(pct)}</td>
+                              <td className="px-4 py-3 text-sm">
+                                {r.bulk_spending_flag ? (
+                                  <span className="text-risk-critical font-semibold">YES</span>
+                                ) : (
+                                  <span className="text-dim">—</span>
+                                )}
+                              </td>
+                              <td className="px-4 py-3 text-sm font-semibold tabular-nums" style={{ color: riskScoreColor(r.spending_risk_score) }}>
+                                {Math.round(r.spending_risk_score || 0)}
+                              </td>
+                            </tr>
+                            {isOpen && (
+                              <tr key={r.mp + i + '-detail'}>
+                                <td colSpan={6} className="px-4 py-3 bg-surface2 text-xs text-dim">
+                                  <span className="font-semibold text-ink">Why this score:</span>{' '}
+                                  {pct}% of {r.mp}'s annual MPLADS spending happened in March
+                                  {r.march_rush_flag ? ' — flagged as year-end fund dumping (>60% threshold).' : '.'}{' '}
+                                  {r.bulk_spending_flag ? 'Also flagged for unusually large single disbursements.' : ''}
+                                  {' '}Composite risk score: {Math.round(r.spending_risk_score || 0)}/100.
+                                </td>
+                              </tr>
                             )}
-                          </td>
-                          <td
-                            className="px-4 py-3 text-sm font-semibold tabular-nums"
-                            style={{ color: riskScoreColor(r.spending_risk_score) }}
-                          >
-                            {Math.round(r.spending_risk_score || 0)}
-                          </td>
-                        </tr>
-                      ))}
+                          </>
+                        )
+                      })}
                 </tbody>
               </table>
             </div>

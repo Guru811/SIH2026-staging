@@ -120,37 +120,34 @@ export default function Duplicates() {
 }
 
 function DuplicateCard({ row }) {
+  const [open, setOpen] = useState(false)
   const isExact = row.max_similarity >= 100
   const isHighConf = row.max_similarity >= 97 && row.max_similarity < 100
   const borderColor = isExact ? 'border-l-risk-critical' : isHighConf ? 'border-l-risk-high' : 'border-l-line'
-  const badgeClasses = isExact
-    ? 'bg-red-100 text-red-700'
-    : isHighConf
-    ? 'bg-orange-100 text-orange-700'
-    : 'bg-surface2 text-dim'
+  const badgeClasses = isExact ? 'bg-red-100 text-red-700' : isHighConf ? 'bg-orange-100 text-orange-700' : 'bg-surface2 text-dim'
   const badgeLabel = isExact ? 'Exact Match' : isHighConf ? 'High Confidence' : `${row.max_similarity}% match`
 
   return (
-    <motion.div
-      whileHover={{ y: -3 }}
-      className={`rounded-xl border border-line border-l-4 ${borderColor} bg-surface p-4 card-hover flex items-center gap-4`}
-    >
-      <div className="flex-1 min-w-0">
-        <p className="text-sm font-medium text-ink truncate" title={row.work}>{row.work}</p>
-        <p className="text-xs text-dim mt-1">{row.constituency}, {row.state}</p>
-        <p className="text-xs text-dim">{row.work_category}</p>
-        <p className="text-sm font-semibold text-accent mt-1">{formatINR(row.sanction_amount)}</p>
+    <motion.div whileHover={{ y: -3 }} onClick={() => setOpen(!open)}
+      className={`rounded-xl border border-line border-l-4 ${borderColor} bg-surface p-4 card-hover cursor-pointer`}>
+      <div className="flex items-center gap-4">
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-medium text-ink truncate" title={row.work}>{row.work}</p>
+          <p className="text-xs text-dim mt-1">{row.constituency}, {row.state}</p>
+          <p className="text-xs text-dim">{row.work_category}</p>
+          <p className="text-sm font-semibold text-accent mt-1">{formatINR(row.sanction_amount)}</p>
+        </div>
+        <div className="flex flex-col items-center gap-1 shrink-0">
+          <span className={`px-2.5 py-1 rounded-full text-xs font-bold ${badgeClasses}`}>{row.max_similarity}%</span>
+          <span className="text-[10px] text-dim">{badgeLabel}</span>
+        </div>
       </div>
-      <div className="flex flex-col items-center gap-1 shrink-0">
-        <span className={`px-2.5 py-1 rounded-full text-xs font-bold ${badgeClasses}`}>
-          {row.max_similarity}%
-        </span>
-        <span className="text-[10px] text-dim">{badgeLabel}</span>
-      </div>
-      <div className="text-right shrink-0 max-w-[120px]">
-        <p className="text-[10px] text-dim uppercase">Matched IDA</p>
-        <p className="text-xs text-dim truncate" title={row.most_similar_ida}>{row.most_similar_ida}</p>
-      </div>
+      {open && (
+        <div className="mt-3 pt-3 border-t border-line text-xs text-dim space-y-1">
+          <p><span className="font-semibold text-ink">Why flagged:</span> This work's description text is a {row.max_similarity}% semantic match to another sanctioned work under IDA <span className="font-mono">{row.most_similar_ida}</span>{isExact ? ' — identical scope, possible double-billing.' : ' — likely overlapping or re-sanctioned work.'}</p>
+          <p><span className="font-semibold text-ink">Matched IDA:</span> {row.most_similar_ida}</p>
+        </div>
+      )}
     </motion.div>
   )
 }

@@ -41,6 +41,9 @@ function CollusionGraph({ data }) {
   const svgRef = useRef(null)
   const wrapRef = useRef(null)
   const [tooltip, setTooltip] = useState(null)
+  const zoomRef = useRef(null)
+  const nodesRef = useRef([])
+  const [search, setSearch] = useState('')
 
   useEffect(() => {
     const nodesRaw = data?.nodes || []
@@ -69,14 +72,23 @@ function CollusionGraph({ data }) {
     const svg = d3.select(svgRef.current).attr('viewBox', `0 0 ${width} ${height}`)
     svg.selectAll('*').remove()
 
+    const g = svg.append('g')
+
+    const zoom = d3.zoom()
+      .scaleExtent([0.5, 5])
+      .on('zoom', (event) => g.attr('transform', event.transform))
+    svg.call(zoom).call(zoom.transform, d3.zoomIdentity)
+    zoomRef.current = zoom
+    nodesRef.current = nodes
+
     const sim = d3
       .forceSimulation(nodes)
       .force('link', d3.forceLink(links).id((d) => d.id).distance(90).strength(0.4))
       .force('charge', d3.forceManyBody().strength(-180))
       .force('center', d3.forceCenter(width / 2, height / 2))
-      .force('collide', d3.forceCollide(18))
+      .force('collide', d3.forceCollide(28))
 
-    const link = svg
+    const link = g
       .append('g')
       .selectAll('line')
       .data(links)
@@ -87,7 +99,7 @@ function CollusionGraph({ data }) {
 
     link.transition().duration(500).attr('opacity', 0.7)
 
-    const node = svg
+    const node = g
       .append('g')
       .selectAll('circle')
       .data(nodes)
@@ -122,6 +134,21 @@ function CollusionGraph({ data }) {
       .duration(400)
       .ease(d3.easeBackOut)
       .attr('r', (d) => (d.type === 'mp' ? 9 : 7))
+
+    const label = g
+      .append('g')
+      .selectAll('text')
+      .data(nodes)
+      .join('text')
+      .text((d) => d.id)
+      .attr('font-size', 9)
+      .attr('fill', '#475569')
+      .attr('dx', 12)
+      .attr('dy', 4)
+      .attr('opacity', 0)
+      .style('pointer-events', 'none')
+
+    label.transition().delay(300).duration(400).attr('opacity', 0.9)
 
     node
       .on('mouseenter', function (event, d) {
@@ -158,8 +185,42 @@ function CollusionGraph({ data }) {
     return () => sim.stop()
   }, [data])
 
+  useEffect(() => {
+    const svg = d3.select(svgRef.current)
+    const nodeSel = svg.selectAll('circle')
+    const linkSel = svg.selectAll('line')
+    if (!search) {
+      nodeSel.transition().duration(300).attr('opacity', 1).attr('stroke', '#fff').attr('stroke-width', 1.5)
+      linkSel.transition().duration(300).attr('opacity', 0.7)
+      return
+    }
+    const q = search.toLowerCase()
+    const match = nodesRef.current.find((n) => n.id.toLowerCase().includes(q))
+
+    nodeSel.transition().duration(300)
+      .attr('opacity', (d) => (d.id.toLowerCase().includes(q) ? 1 : 0.12))
+      .attr('stroke', (d) => (d.id.toLowerCase().includes(q) ? '#f59e0b' : '#fff'))
+      .attr('stroke-width', (d) => (d.id.toLowerCase().includes(q) ? 3 : 1.5))
+
+    linkSel.transition().duration(300)
+      .attr('opacity', (d) => (d.source.id?.toLowerCase().includes(q) || d.target.id?.toLowerCase().includes(q) ? 0.9 : 0.05))
+
+    if (match && zoomRef.current) {
+      const width = wrapRef.current?.clientWidth || 700
+      const transform = d3.zoomIdentity.translate(width / 2, 210).scale(2.5).translate(-match.x, -match.y)
+      svg.transition().duration(600).call(zoomRef.current.transform, transform)
+    }
+  }, [search])
+
   return (
     <div ref={wrapRef} className="relative">
+      <input
+        type="text"
+        value={search}
+        onChange={(e) => setSearch(e.target.value)}
+        placeholder="Search vendor or MP name…"
+        className="w-full max-w-xs mb-3 rounded-lg border border-line bg-surface px-3 py-2 text-sm"
+      />
       <svg ref={svgRef} className="w-full" style={{ maxHeight: 420 }} />
       <AnimatePresence>
         {tooltip && (

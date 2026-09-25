@@ -278,3 +278,38 @@ def mps_by_state(state: str):
     """, (state,))
     df = df.fillna("").replace([float("inf"), float("-inf")], "")
     return df.to_dict(orient="records")
+
+@app.on_event("startup")
+def ensure_review_table():
+    con = sqlite3.connect("mplads.db")
+    con.execute("""
+        CREATE TABLE IF NOT EXISTS reviews (
+            work TEXT, constituency TEXT, status TEXT,
+            reviewer TEXT, note TEXT, reviewed_at TEXT,
+            PRIMARY KEY (work, constituency)
+        )
+    """)
+    con.commit()
+    con.close()
+
+
+@app.post("/api/review")
+def submit_review(payload: dict):
+    con = sqlite3.connect("mplads.db")
+    con.execute("""
+        INSERT INTO reviews (work, constituency, status, reviewer, note, reviewed_at)
+        VALUES (?, ?, ?, ?, ?, datetime('now'))
+        ON CONFLICT(work, constituency) DO UPDATE SET
+            status=excluded.status, reviewer=excluded.reviewer,
+            note=excluded.note, reviewed_at=excluded.reviewed_at
+    """, (payload.get("work"), payload.get("constituency"), payload.get("status"),
+          payload.get("reviewer", "Anonymous"), payload.get("note", "")))
+    con.commit()
+    con.close()
+    return {"ok": True}
+
+
+@app.get("/api/reviews")
+def get_reviews():
+    df = query("SELECT * FROM reviews")
+    return df.to_dict(orient="records")

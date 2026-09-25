@@ -14,6 +14,40 @@ import { formatINR, truncate, formatNumber } from '../lib/format'
 const PAGE_SIZE = 50
 
 export default function Projects() {
+  const reviews = useApi(() => endpoints.reviews(), [])
+  const reviewMap = useMemo(() => {
+  const m = {}
+    ;(reviews.data || []).forEach((r) => { m[r.work + '|' + r.constituency] = r })
+    return m
+  }, [reviews.data])
+  const [localReviews, setLocalReviews] = useState({})
+  const mergedReviewMap = { ...reviewMap, ...localReviews }
+
+  function exportCSV(rowsToExport) {
+    const headers = ['constituency', 'state', 'work_description', 'sanction_amount', 'financial_risk_score', 'delay_risk_score', 'composite_risk_score', 'risk_band']
+    const csv = [headers.join(',')]
+      .concat(rowsToExport.map((r) => headers.map((h) => `"${String(r[h] ?? '').replace(/"/g, '""')}"`).join(',')))
+      .join('\n')
+    const blob = new Blob([csv], { type: 'text/csv' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `mplads_critical_report_${new Date().toISOString().slice(0, 10)}.csv`
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
+  async function markReviewed(row, status) {
+    const key = row.work_description + '|' + row.constituency
+    setLocalReviews((prev) => ({ ...prev, [key]: { status, reviewer: 'Field Officer' } }))
+    await endpoints.submitReview({
+      work: row.work_description,
+      constituency: row.constituency,
+      status,
+      reviewer: 'Field Officer',
+      note: ''
+    })
+  }
   const [searchParams] = useSearchParams()
   const constituency = searchParams.get('constituency')
 
@@ -70,7 +104,15 @@ export default function Projects() {
             {constituency ? `Filtered to ${constituency}` : 'All flagged projects across constituencies'}
           </p>
         </div>
-        <RiskBandButtons value={band} onChange={setBand} />
+        <div className="flex items-center gap-3">
+          <RiskBandButtons value={band} onChange={setBand} />
+          <button
+            onClick={() => exportCSV(filtered.filter((p) => p.risk_band === 'CRITICAL' || p.risk_band === 'HIGH'))}
+            className="px-4 py-2 rounded-lg bg-accent text-white text-sm font-medium hover:opacity-90"
+          >
+            Export Critical Report (CSV)
+          </button>
+        </div>
       </div>
 
       {projects.error && <ErrorState message={projects.error} />}
@@ -118,6 +160,8 @@ export default function Projects() {
                           isOpen={isOpen}
                           onToggle={() => setExpandedId(isOpen ? null : id)}
                           categoryMedian={categoryMedians[p.category || p.work_category]}
+                          review={mergedReviewMap[p.work_description + '|' + p.constituency]}
+                          onReview={(status) => markReviewed(p, status)}
                         />
                       )
                     })}
@@ -133,7 +177,7 @@ export default function Projects() {
   )
 }
 
-function ProjectRow({ p, isOpen, onToggle, categoryMedian }) {
+function ProjectRow({ p, isOpen, onToggle, categoryMedian, review, onReview }) {
   const id = p.work_id || p.id
   const desc = p.work_description || p.description || ''
   const financial = p.financial_risk_score
@@ -226,6 +270,29 @@ function ProjectRow({ p, isOpen, onToggle, categoryMedian }) {
                       </li>
                     )}
                   </ul>
+                                    <div className="mt-4 pt-4 border-t border-line flex items-center gap-3 flex-wrap">
+                    {review ? (
+                      <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${review.status === 'confirmed' ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}`}>
+                        {review.status === 'confirmed' ? '✓ Confirmed risk' : '✓ Marked false positive'} — by {review.reviewer}
+                      </span>
+                    ) : (
+                      <>
+                        <span className="text-xs text-dim">Human review:</span>
+                        <button
+                          onClick={(e) => { e.stopPropagation(); onReview('confirmed') }}
+                          className="text-xs px-3 py-1.5 rounded-lg bg-red-50 text-red-700 border border-red-200 hover:bg-red-100 font-medium"
+                        >
+                          Confirm & Escalate
+                        </button>
+                        <button
+                          onClick={(e) => { e.stopPropagation(); onReview('false_positive') }}
+                          className="text-xs px-3 py-1.5 rounded-lg bg-surface border border-line hover:bg-surface2 font-medium"
+                        >
+                          Mark False Positive
+                        </button>
+                      </>
+                    )}
+                  </div>
                 </div>
               </motion.div>
             </td>

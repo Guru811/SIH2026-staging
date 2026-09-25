@@ -25,6 +25,21 @@ export async function apiGet(path) {
   return res.json()
 }
 
+export async function apiPost(path, body) {
+  let res
+  try {
+    res = await fetch(`${API_BASE}${path}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    })
+  } catch (err) {
+    throw new ApiError('Unable to connect to backend — ensure uvicorn is running on port 8000')
+  }
+  if (!res.ok) throw new ApiError('Unable to connect to backend — ensure uvicorn is running on port 8000')
+  return res.json()
+}
+
 // ---- Endpoint map (see Project_Contexts.pdf "API Endpoints Summary") ----
 export const endpoints = {
   nationalStats: () => apiGet('/api/national-stats'),
@@ -40,5 +55,7 @@ export const endpoints = {
   states: () => apiGet('/api/states'),
   constituencies: (state) => apiGet(`/api/constituencies?state=${encodeURIComponent(state)}`),
   mps: (state) => apiGet(`/api/mps?state=${encodeURIComponent(state)}`),
-  weather: (constituency) => apiGet(`/api/weather/${encodeURIComponent(constituency)}`)
+  weather: (constituency) => apiGet(`/api/weather/${encodeURIComponent(constituency)}`),
+  submitReview: (payload) => apiPost('/api/review', payload),
+  reviews: () => apiGet('/api/reviews'),
 }

@@ -1,10 +1,8 @@
 import sqlite3
 con = sqlite3.connect('mplads.db')
-tables = con.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()
-print("TABLES:")
-for t in tables:
-    print(" ", t[0])
-    cols = con.execute(f"PRAGMA table_info({t[0]})").fetchall()
-    for c in cols:
-        print(f"    {c[1]} ({c[2]})")
-con.close()
+tables = [r[0] for r in con.execute("SELECT name FROM sqlite_master WHERE type='table'")]
+print(tables)
+print(con.execute("SELECT * FROM ingest_meta").fetchall())
+for t in ['allocated_limit', 'expenditure', 'works_completed', 'works_recommended']:
+    n = con.execute(f"SELECT COUNT(*) FROM {t}").fetchone()[0]
+    print(t, n)

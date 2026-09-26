@@ -29,7 +29,7 @@ def run_layer1():
     sub["raw_score"]     = iso.decision_function(X)
 
     s = sub["raw_score"]
-    sub["financial_risk_score"] = ((s - s.max()) / (s.min() - s.max() + 1e-9) * 100).clip(0, 100)
+    sub["financial_risk_score"] = (1 - s.rank(pct=True)) * 100
 
     con = sqlite3.connect("mplads.db")
     sub.to_sql("layer1_scores", con, if_exists="replace", index=False)
@@ -53,6 +53,12 @@ def compute_project_risk_score():
     dup = pd.read_sql("SELECT work, constituency, max_similarity, duplicate_flag FROM layer_duplicate_scores", con)
 
     con.close()
+
+    l1b = (l1b.groupby(["work", "constituency"], as_index=False)
+              .agg(delay_risk_score=("delay_risk_score", "max")))
+    dup = (dup.groupby(["work", "constituency"], as_index=False)
+              .agg(max_similarity=("max_similarity", "max"),
+                   duplicate_flag=("duplicate_flag", "max")))
 
     df = l1.merge(l1b[["work","constituency","delay_risk_score"]], on=["work","constituency"], how="left")
     df = df.merge(dup[["work","constituency","max_similarity","duplicate_flag"]], on=["work","constituency"], how="left")
